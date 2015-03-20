@@ -15,4 +15,6 @@ func TestListDrivers(t *testing.T) {
 	for _, drv := range drivers {
 		t.Logf("%s: %s\n", drv.CLSID, drv.Name)
 	}
+
+	drivers["UA-1000"].Open()
 }

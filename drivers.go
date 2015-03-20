@@ -83,7 +83,7 @@ func newDriver(key syscall.Handle, keynameUTF16 winUTF16string) (drv *ASIODriver
 }
 
 // Enumerate list of ASIO drivers registered on the system
-func ListDrivers() (drivers []*ASIODriver, err error) {
+func ListDrivers() (drivers map[string]*ASIODriver, err error) {
 	var key syscall.Handle
 	key, err = RegOpenKey(syscall.HKEY_LOCAL_MACHINE, "Software\\ASIO", syscall.KEY_ENUMERATE_SUB_KEYS)
 	if err != nil {
@@ -91,7 +91,7 @@ func ListDrivers() (drivers []*ASIODriver, err error) {
 	}
 	defer syscall.RegCloseKey(key)
 
-	drivers = make([]*ASIODriver, 0, 10)
+	drivers = make(map[string]*ASIODriver)
 
 	// Enumerate subkeys:
 	index := uint32(0)
@@ -124,7 +124,7 @@ func ListDrivers() (drivers []*ASIODriver, err error) {
 			continue
 		}
 
-		drivers = append(drivers, drv)
+		drivers[drv.Name] = drv
 	}
 
 	return drivers, nil
