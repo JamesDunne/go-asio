@@ -3,6 +3,7 @@ package asio
 import (
 	"fmt"
 	"syscall"
+	"unsafe"
 )
 
 type winUTF16string struct {
@@ -14,8 +15,8 @@ func (utfstring *winUTF16string) String() string {
 	return syscall.UTF16ToString(utfstring.utf16[:utfstring.length])
 }
 
-type ASIODriver struct {
-	Name string
+func (utfstring *winUTF16string) Addr() *uint16 {
+	return &utfstring.utf16[0]
 }
 
 func RegOpenKey(key syscall.Handle, subkey string, desiredAccess uint32) (handle syscall.Handle, err error) {
@@ -35,13 +36,36 @@ func RegOpenKey(key syscall.Handle, subkey string, desiredAccess uint32) (handle
 	return
 }
 
+type ASIODriver struct {
+	Name  string
+	CLSID string
+}
+
 func newDriver(key syscall.Handle, keynameUTF16 winUTF16string) (drv *ASIODriver, err error) {
-	// TODO(jsd): Get COM CLS_IDs of driver interfaces.
+	var subkey syscall.Handle
+	err = syscall.RegOpenKeyEx(key, keynameUTF16.Addr(), 0, syscall.KEY_READ, &subkey)
+	if err != nil {
+		return nil, err
+	}
+	defer syscall.RegCloseKey(subkey)
+
+	clsidName, err := syscall.UTF16PtrFromString("clsid")
+	if err != nil {
+		return nil, err
+	}
+
+	// Get CLSID of driver impl:
+	clsidUTF16, datatype, datasize := make([]uint16, 128, 128), uint32(syscall.REG_SZ), uint32(256)
+	err = syscall.RegQueryValueEx(subkey, clsidName, nil, &datatype, (*byte)(unsafe.Pointer(&clsidUTF16[0])), &datasize)
+	if err != nil {
+		return nil, err
+	}
 
 	// Convert the subkey name from UTF-16 to a string:
 	keyname := keynameUTF16.String()
 	drv = &ASIODriver{
-		Name: keyname,
+		Name:  keyname,
+		CLSID: syscall.UTF16ToString(clsidUTF16),
 	}
 
 	return drv, nil
@@ -67,7 +91,7 @@ func ListDrivers() (drivers []*ASIODriver, err error) {
 		}
 
 		// Get next subkey:
-		err = syscall.RegEnumKeyEx(key, index, &keynameUTF16.utf16[0], &keynameUTF16.length, nil, nil, nil, nil)
+		err = syscall.RegEnumKeyEx(key, index, keynameUTF16.Addr(), &keynameUTF16.length, nil, nil, nil, nil)
 		// Determine when to stop:
 		if err != nil {
 			if errno, ok := err.(syscall.Errno); ok {

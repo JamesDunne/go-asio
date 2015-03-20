@@ -10,6 +10,6 @@ func TestListDrivers(t *testing.T) {
 	}
 
 	for _, drv := range drivers {
-		t.Log(drv.Name)
+		t.Logf("%s: %s\n", drv.CLSID, drv.Name)
 	}
 }
