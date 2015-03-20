@@ -3,6 +3,9 @@ package asio
 import "testing"
 
 func TestListDrivers(t *testing.T) {
+	CoInitialize(0)
+	defer CoUninitialize()
+
 	drivers, err := ListDrivers()
 	if err != nil {
 		t.Error(err)

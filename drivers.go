@@ -39,6 +39,12 @@ func RegOpenKey(key syscall.Handle, subkey string, desiredAccess uint32) (handle
 type ASIODriver struct {
 	Name  string
 	CLSID string
+	GUID  *GUID
+}
+
+func (drv *ASIODriver) Open() {
+	// CoCreateInstance(lpdrv->clsid,0,CLSCTX_INPROC_SERVER,lpdrv->clsid,asiodrv);
+	CreateInstance(drv.GUID, nil)
 }
 
 func newDriver(key syscall.Handle, keynameUTF16 winUTF16string) (drv *ASIODriver, err error) {
@@ -66,6 +72,11 @@ func newDriver(key syscall.Handle, keynameUTF16 winUTF16string) (drv *ASIODriver
 	drv = &ASIODriver{
 		Name:  keyname,
 		CLSID: syscall.UTF16ToString(clsidUTF16),
+	}
+
+	drv.GUID, err = CLSIDFromStringUTF16(&clsidUTF16[0])
+	if err != nil {
+		return nil, err
 	}
 
 	return drv, nil
@@ -105,6 +116,8 @@ func ListDrivers() (drivers []*ASIODriver, err error) {
 			return
 		}
 
+		index++
+
 		// Create an ASIODriver based on the key:
 		drv, err := newDriver(key, keynameUTF16)
 		if err != nil {
@@ -112,8 +125,6 @@ func ListDrivers() (drivers []*ASIODriver, err error) {
 		}
 
 		drivers = append(drivers, drv)
-
-		index++
 	}
 
 	return drivers, nil
