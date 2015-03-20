@@ -103,3 +103,14 @@ func CreateInstance(clsid *GUID, iid *GUID) (unk *IDispatch, err error) {
 	}
 	return
 }
+
+func (disp *IDispatch) Release() (err error) {
+	hr, _, _ := syscall.Syscall(disp.lpVtbl.pRelease, uintptr(1),
+		uintptr(unsafe.Pointer(disp)),
+		uintptr(0),
+		uintptr(0))
+	if hr != 0 {
+		err = syscall.Errno(hr)
+	}
+	return
+}
