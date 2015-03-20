@@ -47,7 +47,10 @@ type ASIODriver struct {
 
 type IASIO struct {
 	//virtual ASIOBool init(void *sysHandle) = 0;
+	pInit uintptr
 	//virtual void getDriverName(char *name) = 0;
+	pGetDriverName uintptr
+
 	//virtual long getDriverVersion() = 0;
 	//virtual void getErrorMessage(char *string) = 0;
 	//virtual ASIOError start() = 0;
@@ -82,6 +85,18 @@ func (drv *ASIODriver) Open() error {
 
 func (drv *ASIODriver) Close() {
 	drv.com.Release()
+}
+
+func (drv *ASIODriver) GetDriverName() string {
+	fmt.Println(drv.iasio.pGetDriverName)
+
+	name := [128]byte{}
+	// TODO: fixme!
+	syscall.Syscall(drv.iasio.pGetDriverName, 2,
+		uintptr(unsafe.Pointer(drv.iasio)),
+		uintptr(unsafe.Pointer(&name)),
+		uintptr(0))
+	return string(name[:])
 }
 
 func newDriver(key syscall.Handle, keynameUTF16 winUTF16string) (drv *ASIODriver, err error) {

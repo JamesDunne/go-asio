@@ -27,5 +27,6 @@ func TestListDrivers(t *testing.T) {
 		defer ua1000.Close()
 
 		t.Log("UA-1000 opened.")
+		t.Logf("%s\n", ua1000.GetDriverName())
 	}
 }
