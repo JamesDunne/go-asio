@@ -91,24 +91,26 @@ func CreateInstance(clsid *GUID, iid *GUID) (unk *IUnknown, err error) {
 	return
 }
 
-func (unk *IUnknown) AddRef() (err error) {
-	hr, _, _ := syscall.Syscall(unk.lpVtbl.pAddRef, uintptr(1),
+func (unk *IUnknown) AddRef() (r1 uintptr, err error) {
+	var errno syscall.Errno
+	r1, _, errno = syscall.Syscall(unk.lpVtbl.pAddRef, uintptr(1),
 		uintptr(unsafe.Pointer(unk)),
 		uintptr(0),
 		uintptr(0))
-	if hr != 0 {
-		err = syscall.Errno(hr)
+	if errno != 0 {
+		err = errno
 	}
 	return
 }
 
-func (unk *IUnknown) Release() (err error) {
-	hr, _, _ := syscall.Syscall(unk.lpVtbl.pRelease, uintptr(1),
+func (unk *IUnknown) Release() (r1 uintptr, err error) {
+	var errno syscall.Errno
+	r1, _, errno = syscall.Syscall(unk.lpVtbl.pRelease, uintptr(1),
 		uintptr(unsafe.Pointer(unk)),
 		uintptr(0),
 		uintptr(0))
-	if hr != 0 {
-		err = syscall.Errno(hr)
+	if errno != 0 {
+		err = errno
 	}
 	return
 }

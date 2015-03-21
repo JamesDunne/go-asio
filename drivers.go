@@ -1,6 +1,7 @@
 package asio
 
 import (
+	"bytes"
 	"fmt"
 	"syscall"
 	"unsafe"
@@ -38,6 +39,7 @@ func RegOpenKey(key syscall.Handle, subkey string, desiredAccess uint32) (handle
 
 // interface IASIO : public IUnknown {
 type pIASIOVtbl struct {
+	// v-tables are flattened in memory for simple direct cases like this.
 	pIUnknownVtbl
 
 	//virtual ASIOBool init(void *sysHandle) = 0;
@@ -46,6 +48,7 @@ type pIASIOVtbl struct {
 	pGetDriverName uintptr
 
 	//virtual long getDriverVersion() = 0;
+	pGetDriverVersion uintptr
 	//virtual void getErrorMessage(char *string) = 0;
 	//virtual ASIOError start() = 0;
 	//virtual ASIOError stop() = 0;
@@ -72,15 +75,28 @@ type IASIO struct {
 }
 
 func (obj *IASIO) AsIUnknown() *IUnknown { return (*IUnknown)(unsafe.Pointer(obj)) }
-func (obj *IASIO) Init(sysHandle uintptr) (r1 uintptr, err error) {
-	hr, r1, _ := syscall.Syscall(obj.vtbl_asio.pInit, 2,
+
+func (obj *IASIO) Init(sysHandle uintptr) (ok bool, err error) {
+	r1, _, errno := syscall.Syscall(obj.vtbl_asio.pInit, 2,
 		uintptr(unsafe.Pointer(obj)),
 		sysHandle,
 		uintptr(0))
-	if hr != 0 {
-		err = syscall.Errno(hr)
+	if errno != 0 {
+		err = errno
 	}
+	ok = (r1 != 0)
 	return
+}
+
+func (obj *IASIO) GetDriverName() string {
+	name := [128]byte{0}
+	syscall.Syscall(obj.vtbl_asio.pGetDriverName, 2,
+		uintptr(unsafe.Pointer(obj)),
+		uintptr(unsafe.Pointer(&name[0])),
+		uintptr(0))
+
+	lz := bytes.IndexByte(name[:], byte(0))
+	return string(name[:lz])
 }
 
 type ASIODriver struct {
@@ -97,14 +113,13 @@ func (drv *ASIODriver) Open() (err error) {
 		return
 	}
 	drv.obj = (*IASIO)(unsafe.Pointer(disp))
-	err = drv.obj.AsIUnknown().AddRef()
-	if err != nil {
-		return
-	}
 
-	r1, err := drv.obj.Init(uintptr(unsafe.Pointer(drv.obj)))
-	fmt.Println(r1)
-	fmt.Println(err)
+	//drv.obj.AsIUnknown().AddRef()
+
+	ok, err := drv.obj.Init(uintptr(0))
+	if !ok {
+		return fmt.Errorf("Could not open ASIO driver")
+	}
 
 	return
 }
@@ -114,12 +129,7 @@ func (drv *ASIODriver) Close() {
 }
 
 func (drv *ASIODriver) GetDriverName() string {
-	name := [128]byte{}
-	syscall.Syscall(drv.obj.vtbl_asio.pGetDriverName, 2,
-		uintptr(unsafe.Pointer(drv.obj)),
-		uintptr(unsafe.Pointer(&name[0])),
-		uintptr(0))
-	return string(name[:])
+	return drv.obj.GetDriverName()
 }
 
 func newDriver(key syscall.Handle, keynameUTF16 winUTF16string) (drv *ASIODriver, err error) {

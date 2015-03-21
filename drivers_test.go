@@ -23,11 +23,15 @@ func TestListDrivers(t *testing.T) {
 		ua1000 := drivers["UA-1000"]
 
 		fmt.Printf("ua1000.Open()\n")
-		ua1000.Open()
+		err = ua1000.Open()
+		if err != nil {
+			t.Error(err)
+		}
 		defer fmt.Printf("ua1000.Close()\n")
 		defer ua1000.Close()
 
 		fmt.Printf("UA-1000 opened.\n")
-		fmt.Printf("%s\n", ua1000.GetDriverName())
+		fmt.Printf("getDriverName(): '%s'\n", ua1000.GetDriverName())
+
 	}
 }
