@@ -99,6 +99,14 @@ func (obj *IASIO) GetDriverName() string {
 	return string(name[:lz])
 }
 
+func (obj *IASIO) GetDriverVersion() int32 {
+	r1, _, _ := syscall.Syscall(obj.vtbl_asio.pGetDriverVersion, 2,
+		uintptr(unsafe.Pointer(obj)),
+		uintptr(0),
+		uintptr(0))
+	return int32(r1)
+}
+
 type ASIODriver struct {
 	Name  string
 	CLSID string
@@ -130,6 +138,10 @@ func (drv *ASIODriver) Close() {
 
 func (drv *ASIODriver) GetDriverName() string {
 	return drv.obj.GetDriverName()
+}
+
+func (drv *ASIODriver) GetDriverVersion() int32 {
+	return drv.obj.GetDriverVersion()
 }
 
 func newDriver(key syscall.Handle, keynameUTF16 winUTF16string) (drv *ASIODriver, err error) {

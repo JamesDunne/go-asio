@@ -24,14 +24,16 @@ func TestListDrivers(t *testing.T) {
 
 		fmt.Printf("ua1000.Open()\n")
 		err = ua1000.Open()
-		if err != nil {
-			t.Error(err)
-		}
 		defer fmt.Printf("ua1000.Close()\n")
 		defer ua1000.Close()
+		if err != nil {
+			t.Error(err)
+			return
+		}
 
 		fmt.Printf("UA-1000 opened.\n")
-		fmt.Printf("getDriverName(): '%s'\n", ua1000.GetDriverName())
 
+		fmt.Printf("getDriverName():    '%s'\n", ua1000.GetDriverName())
+		fmt.Printf("getDriverVersion(): %d\n", ua1000.GetDriverVersion())
 	}
 }
