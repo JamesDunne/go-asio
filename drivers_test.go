@@ -71,6 +71,10 @@ func TestListDrivers(t *testing.T) {
 		}
 		fmt.Printf("getSampleRate():      %v\n", srate)
 
+		// SetSampleRate
+		err = drv.SetSampleRate(44100.)
+		fmt.Printf("setSampleRate(44100): %v\n", err)
+
 		// outputReady
 		// createBuffers (set callbacks)
 		// getChannelInfo (for N)

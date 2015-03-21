@@ -6,15 +6,64 @@ import (
 	"unsafe"
 )
 
+// Special ASIO error values:
+const (
+	ASE_OK      = 0          // This value will be returned whenever the call succeeded
+	ASE_SUCCESS = 0x3f4847a0 // unique success return value for ASIOFuture calls
+)
+
+// Known ASIO error values:
+const (
+	ASE_NotPresent       = -1000 + iota // hardware input or output is not present or available
+	ASE_HWMalfunction                   // hardware is malfunctioning (can be returned by any ASIO function)
+	ASE_InvalidParameter                // input parameter invalid
+	ASE_InvalidMode                     // hardware is in a bad mode or used in a bad mode
+	ASE_SPNotAdvancing                  // hardware is not running when sample position is inquired
+	ASE_NoClock                         // sample clock or rate cannot be determined or is not present
+	ASE_NoMemory                        // not enough memory for completing the request
+)
+
 type Error struct {
-	errno uintptr
+	errno int32
 	msg   string
 }
 
-func asError(drv *IASIO, errno uintptr) *Error {
-	if errno == uintptr(0) {
+// Fixed instances of errors:
+var (
+	ErrorNotPresent       = &Error{errno: ASE_NotPresent, msg: "hardware input or output is not present or available"}
+	ErrorHWMalfunction    = &Error{errno: ASE_HWMalfunction, msg: "hardware is malfunctioning (can be returned by any ASIO function)"}
+	ErrorInvalidParameter = &Error{errno: ASE_InvalidParameter, msg: "input parameter invalid"}
+	ErrorInvalidMode      = &Error{errno: ASE_InvalidMode, msg: "hardware is in a bad mode or used in a bad mode"}
+	ErrorSPNotAdvancing   = &Error{errno: ASE_SPNotAdvancing, msg: "hardware is not running when sample position is inquired"}
+	ErrorNoClock          = &Error{errno: ASE_NoClock, msg: "sample clock or rate cannot be determined or is not present"}
+	ErrorNoMemory         = &Error{errno: ASE_NoMemory, msg: "not enough memory for completing the request"}
+)
+
+// Mapping of known ASIO error values to Errors:
+var knownErrors map[int32]*Error = map[int32]*Error{
+	ASE_NotPresent:       ErrorNotPresent,
+	ASE_HWMalfunction:    ErrorHWMalfunction,
+	ASE_InvalidParameter: ErrorInvalidParameter,
+	ASE_InvalidMode:      ErrorInvalidMode,
+	ASE_SPNotAdvancing:   ErrorSPNotAdvancing,
+	ASE_NoClock:          ErrorNoClock,
+	ASE_NoMemory:         ErrorNoMemory,
+}
+
+func asError(drv *IASIO, ase uintptr) *Error {
+	errno := int32(ase)
+
+	switch errno {
+	case ASE_OK:
+		return nil
+	case ASE_SUCCESS:
 		return nil
 	}
+	if err, ok := knownErrors[errno]; ok {
+		return err
+	}
+
+	// This rarely seems to return anything useful
 	return &Error{errno: errno, msg: drv.GetErrorMessage()}
 }
 
@@ -234,7 +283,7 @@ func (drv *IASIO) GetBufferSize() (minSize, maxSize, preferredSize, granularity 
 func (drv *IASIO) CanSampleRate(sampleRate float64) (can bool) {
 	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pCanSampleRate, 2,
 		uintptr(unsafe.Pointer(drv)),
-		uintptr(sampleRate),
+		uintptr(unsafe.Pointer(&sampleRate)),
 		uintptr(0))
 
 	return errno != uintptr(0)
@@ -258,6 +307,19 @@ func (drv *IASIO) GetSampleRate() (sampleRate float64, err error) {
 
 ////virtual ASIOError setSampleRate(ASIOSampleRate sampleRate) = 0;
 //pSetSampleRate uintptr
+func (drv *IASIO) SetSampleRate(sampleRate float64) (err error) {
+	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pSetSampleRate, 2,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(unsafe.Pointer(&sampleRate)),
+		uintptr(0))
+
+	serr := asError(drv, errno)
+	if serr != nil {
+		return serr
+	}
+
+	return nil
+}
 
 ////virtual ASIOError getClockSources(ASIOClockSource *clocks, long *numSources) = 0;
 //pGetClockSources uintptr
