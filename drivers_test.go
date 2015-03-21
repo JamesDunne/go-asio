@@ -1,6 +1,8 @@
 package asio
 
-import "testing"
+import (
+	"testing"
+)
 import "fmt"
 
 func TestListDrivers(t *testing.T) {
@@ -42,6 +44,14 @@ func TestListDrivers(t *testing.T) {
 		// ASIO startup procedure:
 
 		// getChannels
+		in, out, err := drv.GetChannels()
+		if err != nil {
+			fmt.Printf("err: %v\n", err)
+			t.Error(err)
+			return
+		}
+		fmt.Printf("getChannels():        %d, %d\n", in, out)
+
 		// getBufferSize
 		// getSampleRate
 		// outputReady

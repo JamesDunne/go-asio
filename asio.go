@@ -152,18 +152,71 @@ func (drv *IASIO) GetErrorMessage() string {
 	return string(str[:lz])
 }
 
-func (drv *IASIO) Start() error {
+func (drv *IASIO) Start() (err error) {
 	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pStart, 1,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(0),
 		uintptr(0))
-	return asError(drv, errno)
+	if derr := asError(drv, errno); derr != nil {
+		return derr
+	}
+	return nil
 }
 
-func (drv *IASIO) Stop() error {
+func (drv *IASIO) Stop() (err error) {
 	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pStop, 1,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(0),
 		uintptr(0))
-	return asError(drv, errno)
+	if derr := asError(drv, errno); derr != nil {
+		return derr
+	}
+	return nil
 }
+
+//virtual ASIOError getChannels(long *numInputChannels, long *numOutputChannels) = 0;
+func (drv *IASIO) GetChannels() (numInputChannels, numOutputChannels int, err error) {
+	var tmpInputChannels, tmpOutputChannels uintptr
+
+	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pGetChannels, 3,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(unsafe.Pointer(&tmpInputChannels)),
+		uintptr(unsafe.Pointer(&tmpOutputChannels)))
+
+	serr := asError(drv, errno)
+	if serr != nil {
+		return 0, 0, serr
+	}
+
+	return int(tmpInputChannels), int(tmpOutputChannels), nil
+}
+
+////virtual ASIOError getLatencies(long *inputLatency, long *outputLatency) = 0;
+//pGetLatencies uintptr
+
+////virtual ASIOError getBufferSize(long *minSize, long *maxSize, long *preferredSize, long *granularity) = 0;
+//pGetBufferSize uintptr
+////virtual ASIOError canSampleRate(ASIOSampleRate sampleRate) = 0;
+//pCanSampleRate uintptr
+////virtual ASIOError getSampleRate(ASIOSampleRate *sampleRate) = 0;
+//pGetSampleRate uintptr
+////virtual ASIOError setSampleRate(ASIOSampleRate sampleRate) = 0;
+//pSetSampleRate uintptr
+////virtual ASIOError getClockSources(ASIOClockSource *clocks, long *numSources) = 0;
+//pGetClockSources uintptr
+////virtual ASIOError setClockSource(long reference) = 0;
+//pSetClockSource uintptr
+////virtual ASIOError getSamplePosition(ASIOSamples *sPos, ASIOTimeStamp *tStamp) = 0;
+//pGetSamplePosition uintptr
+////virtual ASIOError getChannelInfo(ASIOChannelInfo *info) = 0;
+//pGetChannelInfo uintptr
+////virtual ASIOError createBuffers(ASIOBufferInfo *bufferInfos, long numChannels, long bufferSize, ASIOCallbacks *callbacks) = 0;
+//pCreateBuffers uintptr
+////virtual ASIOError disposeBuffers() = 0;
+//pDisposeBuffers uintptr
+////virtual ASIOError controlPanel() = 0;
+//pControlPanel uintptr
+////virtual ASIOError future(long selector,void *opt) = 0;
+//pFuture uintptr
+////virtual ASIOError outputReady() = 0;
+//pOutputReady uintptr
