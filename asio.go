@@ -133,6 +133,31 @@ type ChannelInfo struct {
 	Name         string
 }
 
+type rawBufferInfo struct {
+	isInput int32     // input
+	channel int32     // input
+	buffers [2]*int32 // output
+
+	//	ASIOBool isInput;			// on input:  ASIOTrue: input, else output
+	//	long channelNum;			// on input:  channel index
+	//	void *buffers[2];			// on output: double buffer addresses
+}
+
+type BufferInfo struct {
+	Channel int
+	IsInput bool
+	Buffers [2]*int32 // double buffers - may need to recast based on sample type (int32 most popular; ASIOSTInt32LSB)
+}
+
+type rawASIOTime struct { // both input/output
+	//	long reserved[4];                       // must be 0
+	//	struct AsioTimeInfo     timeInfo;       // required
+	//	struct ASIOTimeCode     timeCode;       // optional, evaluated if (timeCode.flags & kTcValid)
+}
+
+type ASIOTime struct {
+}
+
 type Callbacks struct {
 	//void (*bufferSwitch) (long doubleBufferIndex, ASIOBool directProcess);
 	//	// bufferSwitch indicates that both input and output are to be processed.
@@ -150,21 +175,25 @@ type Callbacks struct {
 	//	// would cause timing instabilities for the rest of the system. If in doubt,
 	//	// directProcess should be set to ASIOFalse.
 	//	// Note: bufferSwitch may be called at interrupt time for highest efficiency.
+	BufferSwitch func(doubleBufferIndex int, directProcess bool)
 
 	//void (*sampleRateDidChange) (ASIOSampleRate sRate);
 	//	// gets called when the AudioStreamIO detects a sample rate change
 	//	// If sample rate is unknown, 0 is passed (for instance, clock loss
 	//	// when externally synchronized).
+	SampleRateDidChange func(rate float64)
 
 	//long (*asioMessage) (long selector, long value, void* message, double* opt);
 	//	// generic callback for various purposes, see selectors below.
 	//	// note this is only present if the asio version is 2 or higher
+	Message func(selector, value int32, message uintptr, opt *float64) int32
 
 	//ASIOTime* (*bufferSwitchTimeInfo) (ASIOTime* params, long doubleBufferIndex, ASIOBool directProcess);
 	//	// new callback with time info. makes ASIOGetSamplePosition() and various
 	//	// calls to ASIOGetSampleRate obsolete,
 	//	// and allows for timecode sync etc. to be preferred; will be used if
 	//	// the driver calls asioMessage with selector kAsioSupportsTimeInfo.
+	BufferSwitchTimeInfo func(params *ASIOTime, doubleBufferIndex int32, directProcess bool) *ASIOTime
 }
 
 // interface IASIO : public IUnknown {
@@ -407,8 +436,7 @@ func int32_bool(a int32) bool {
 	return a != 0
 }
 
-////virtual ASIOError getChannelInfo(ASIOChannelInfo *info) = 0;
-//pGetChannelInfo uintptr
+//virtual ASIOError getChannelInfo(ASIOChannelInfo *info) = 0;
 func (drv *IASIO) GetChannelInfo(channel int, isInput bool) (info *ChannelInfo, err error) {
 	raw := &rawChannelInfo{
 		Channel: int32(channel),
@@ -434,12 +462,43 @@ func (drv *IASIO) GetChannelInfo(channel int, isInput bool) (info *ChannelInfo, 
 	return info, nil
 }
 
-////virtual ASIOError createBuffers(ASIOBufferInfo *bufferInfos, long numChannels, long bufferSize, ASIOCallbacks *callbacks) = 0;
-//pCreateBuffers uintptr
+//virtual ASIOError createBuffers(ASIOBufferInfo *bufferInfos, long numChannels, long bufferSize, ASIOCallbacks *callbacks) = 0;
+func (drv *IASIO) CreateBuffers(bufferDescriptors []BufferInfo, bufferSize int, callbacks Callbacks) (err error) {
+	// Prepare the raw struct for holding ASIOBufferInfos:
+	rawBufferInfos := make([]rawBufferInfo, len(bufferDescriptors), len(bufferDescriptors))
+	for _, desc := range bufferDescriptors {
+		rawBufferInfos = append(rawBufferInfos, rawBufferInfo{
+			channel: int32(desc.Channel),
+			isInput: bool_int32(desc.IsInput),
+			buffers: [2]*int32{nil, nil},
+		})
+	}
+
+	ase, _, _ := syscall.Syscall6(drv.vtbl_asio.pCreateBuffers, 5,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(unsafe.Pointer(&rawBufferInfos[0])),
+		uintptr(len(bufferDescriptors)),
+		uintptr(bufferSize),
+		// TODO callbacks
+		uintptr(0),
+		uintptr(0))
+
+	if derr := drv.asError(ase); derr != nil {
+		return derr
+	}
+
+	// Project output buffer addresses back into input `[]BufferInfo`:
+	for i, _ := range bufferDescriptors {
+		bufferDescriptors[i].Buffers = rawBufferInfos[i].buffers
+	}
+
+	return nil
+}
+
 ////virtual ASIOError disposeBuffers() = 0;
 //pDisposeBuffers uintptr
-////virtual ASIOError controlPanel() = 0;
-//pControlPanel uintptr
+
+//virtual ASIOError controlPanel() = 0;
 func (drv *IASIO) ControlPanel() (err error) {
 	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pControlPanel, 1,
 		uintptr(unsafe.Pointer(drv)),
@@ -455,8 +514,7 @@ func (drv *IASIO) ControlPanel() (err error) {
 ////virtual ASIOError future(long selector,void *opt) = 0;
 //pFuture uintptr
 
-////virtual ASIOError outputReady() = 0;
-//pOutputReady uintptr
+//virtual ASIOError outputReady() = 0;
 func (drv *IASIO) OutputReady() bool {
 	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pOutputReady, 1,
 		uintptr(unsafe.Pointer(drv)),
