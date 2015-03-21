@@ -46,7 +46,6 @@ func TestListDrivers(t *testing.T) {
 		// getChannels
 		in, out, err := drv.GetChannels()
 		if err != nil {
-			fmt.Printf("err: %v\n", err)
 			t.Error(err)
 			return
 		}
@@ -58,6 +57,13 @@ func TestListDrivers(t *testing.T) {
 		// createBuffers (set callbacks)
 		// getChannelInfo (for N)
 		// getLatencies
+		latin, latout, err := drv.GetLatencies()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		fmt.Printf("getLatencies():       %d, %d\n", latin, latout)
+
 		// start
 
 		// wait

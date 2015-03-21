@@ -192,7 +192,21 @@ func (drv *IASIO) GetChannels() (numInputChannels, numOutputChannels int, err er
 }
 
 ////virtual ASIOError getLatencies(long *inputLatency, long *outputLatency) = 0;
-//pGetLatencies uintptr
+func (drv *IASIO) GetLatencies() (inputLatency, outputLatency int, err error) {
+	var tmpInputLatency, tmpOutputLatency uintptr
+
+	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pGetLatencies, 3,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(unsafe.Pointer(&tmpInputLatency)),
+		uintptr(unsafe.Pointer(&tmpOutputLatency)))
+
+	serr := asError(drv, errno)
+	if serr != nil {
+		return 0, 0, serr
+	}
+
+	return int(tmpInputLatency), int(tmpOutputLatency), nil
+}
 
 ////virtual ASIOError getBufferSize(long *minSize, long *maxSize, long *preferredSize, long *granularity) = 0;
 //pGetBufferSize uintptr
