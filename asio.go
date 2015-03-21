@@ -209,6 +209,26 @@ func (drv *IASIO) GetLatencies() (inputLatency, outputLatency int, err error) {
 }
 
 ////virtual ASIOError getBufferSize(long *minSize, long *maxSize, long *preferredSize, long *granularity) = 0;
+func (drv *IASIO) GetBufferSize() (minSize, maxSize, preferredSize, granularity int, err error) {
+	var tmpminSize, tmpmaxSize, tmppreferredSize, tmpgranularity uintptr
+
+	errno, _, _ := syscall.Syscall6(drv.vtbl_asio.pGetBufferSize, 5,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(unsafe.Pointer(&tmpminSize)),
+		uintptr(unsafe.Pointer(&tmpmaxSize)),
+		uintptr(unsafe.Pointer(&tmppreferredSize)),
+		uintptr(unsafe.Pointer(&tmpgranularity)),
+		uintptr(0),
+	)
+
+	serr := asError(drv, errno)
+	if serr != nil {
+		return 0, 0, 0, 0, serr
+	}
+
+	return int(tmpminSize), int(tmpmaxSize), int(tmppreferredSize), int(tmpgranularity), nil
+}
+
 //pGetBufferSize uintptr
 ////virtual ASIOError canSampleRate(ASIOSampleRate sampleRate) = 0;
 //pCanSampleRate uintptr

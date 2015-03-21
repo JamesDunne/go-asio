@@ -52,6 +52,13 @@ func TestListDrivers(t *testing.T) {
 		fmt.Printf("getChannels():        %d, %d\n", in, out)
 
 		// getBufferSize
+		minSize, maxSize, preferredSize, granularity, err := drv.GetBufferSize()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		fmt.Printf("getBufferSize():      %d, %d, %d, %d\n", minSize, maxSize, preferredSize, granularity)
+
 		// getSampleRate
 		// outputReady
 		// createBuffers (set callbacks)
