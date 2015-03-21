@@ -31,10 +31,13 @@ func TestListDrivers(t *testing.T) {
 			return
 		}
 
+		drv := ua1000.ASIO
+
 		fmt.Printf("UA-1000 opened.\n")
 
-		fmt.Printf("getDriverName():    '%s'\n", ua1000.GetDriverName())
-		fmt.Printf("getDriverVersion(): %d\n", ua1000.GetDriverVersion())
+		fmt.Printf("getDriverName():      '%s'\n", drv.GetDriverName())
+		fmt.Printf("getDriverVersion():   %d\n", drv.GetDriverVersion())
+		fmt.Printf("getErrorMessage():    '%s'\n", drv.GetErrorMessage())
 
 		// ASIO startup procedure:
 

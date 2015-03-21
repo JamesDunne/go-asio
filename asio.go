@@ -6,6 +6,22 @@ import (
 	"unsafe"
 )
 
+type Error struct {
+	errno uintptr
+	msg   string
+}
+
+func asError(drv *IASIO, errno uintptr) *Error {
+	if errno == uintptr(0) {
+		return nil
+	}
+	return &Error{errno: errno, msg: drv.GetErrorMessage()}
+}
+
+func (err *Error) Error() string {
+	return err.msg
+}
+
 type ASIOCallbacks struct {
 	//void (*bufferSwitch) (long doubleBufferIndex, ASIOBool directProcess);
 	//	// bufferSwitch indicates that both input and output are to be processed.
@@ -94,21 +110,21 @@ type IASIO struct {
 	vtbl_asio *pIASIOVtbl
 }
 
-func (obj *IASIO) AsIUnknown() *IUnknown { return (*IUnknown)(unsafe.Pointer(obj)) }
+func (drv *IASIO) AsIUnknown() *IUnknown { return (*IUnknown)(unsafe.Pointer(drv)) }
 
-func (obj *IASIO) Init(sysHandle uintptr) (ok bool) {
-	r1, _, _ := syscall.Syscall(obj.vtbl_asio.pInit, 2,
-		uintptr(unsafe.Pointer(obj)),
+func (drv *IASIO) Init(sysHandle uintptr) (ok bool) {
+	r1, _, _ := syscall.Syscall(drv.vtbl_asio.pInit, 2,
+		uintptr(unsafe.Pointer(drv)),
 		sysHandle,
 		uintptr(0))
 	ok = (r1 != 0)
 	return
 }
 
-func (obj *IASIO) GetDriverName() string {
+func (drv *IASIO) GetDriverName() string {
 	name := [128]byte{0}
-	syscall.Syscall(obj.vtbl_asio.pGetDriverName, 2,
-		uintptr(unsafe.Pointer(obj)),
+	syscall.Syscall(drv.vtbl_asio.pGetDriverName, 2,
+		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&name[0])),
 		uintptr(0))
 
@@ -116,10 +132,30 @@ func (obj *IASIO) GetDriverName() string {
 	return string(name[:lz])
 }
 
-func (obj *IASIO) GetDriverVersion() int32 {
-	r1, _, _ := syscall.Syscall(obj.vtbl_asio.pGetDriverVersion, 2,
-		uintptr(unsafe.Pointer(obj)),
+func (drv *IASIO) GetDriverVersion() int32 {
+	r1, _, _ := syscall.Syscall(drv.vtbl_asio.pGetDriverVersion, 2,
+		uintptr(unsafe.Pointer(drv)),
 		uintptr(0),
 		uintptr(0))
 	return int32(r1)
+}
+
+func (drv *IASIO) GetErrorMessage() string {
+	str := [128]byte{0}
+
+	_, _, _ = syscall.Syscall(drv.vtbl_asio.pGetErrorMessage, 2,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(unsafe.Pointer(&str[0])),
+		uintptr(0))
+
+	lz := bytes.IndexByte(str[:], byte(0))
+	return string(str[:lz])
+}
+
+func (drv *IASIO) Start() error {
+	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pStart, 2,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(0),
+		uintptr(0))
+	return asError(drv, errno)
 }

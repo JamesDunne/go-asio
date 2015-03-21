@@ -11,7 +11,7 @@ type ASIODriver struct {
 	CLSID string
 	GUID  *GUID
 
-	obj *IASIO
+	ASIO *IASIO
 }
 
 func (drv *ASIODriver) Open() (err error) {
@@ -19,28 +19,20 @@ func (drv *ASIODriver) Open() (err error) {
 	if err != nil {
 		return
 	}
-	drv.obj = (*IASIO)(unsafe.Pointer(disp))
+	drv.ASIO = (*IASIO)(unsafe.Pointer(disp))
 
-	//drv.obj.AsIUnknown().AddRef()
+	//drv.ASIO.AsIUnknown().AddRef()
 
-	ok := drv.obj.Init(uintptr(0))
+	ok := drv.ASIO.Init(uintptr(0))
 	if !ok {
-		return fmt.Errorf("Could not open ASIO driver")
+		return fmt.Errorf("Could not init ASIO driver")
 	}
 
 	return
 }
 
 func (drv *ASIODriver) Close() {
-	drv.obj.AsIUnknown().Release()
-}
-
-func (drv *ASIODriver) GetDriverName() string {
-	return drv.obj.GetDriverName()
-}
-
-func (drv *ASIODriver) GetDriverVersion() int32 {
-	return drv.obj.GetDriverVersion()
+	drv.ASIO.AsIUnknown().Release()
 }
 
 func newDriver(key syscall.Handle, keynameUTF16 winUTF16string) (drv *ASIODriver, err error) {
