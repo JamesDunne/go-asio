@@ -5,6 +5,36 @@ import (
 	"unsafe"
 )
 
+type winUTF16string struct {
+	utf16  []uint16
+	length uint32
+}
+
+func (utfstring *winUTF16string) String() string {
+	return syscall.UTF16ToString(utfstring.utf16[:utfstring.length])
+}
+
+func (utfstring *winUTF16string) Addr() *uint16 {
+	return &utfstring.utf16[0]
+}
+
+func RegOpenKey(key syscall.Handle, subkey string, desiredAccess uint32) (handle syscall.Handle, err error) {
+	var subkeyUTF16 *uint16
+	subkeyUTF16, err = syscall.UTF16PtrFromString(subkey)
+	if err != nil {
+		return syscall.InvalidHandle, err
+	}
+
+	err = syscall.RegOpenKeyEx(
+		key,
+		subkeyUTF16,
+		uint32(0),
+		desiredAccess,
+		&handle,
+	)
+	return
+}
+
 type GUID struct {
 	Data1 uint32
 	Data2 uint16

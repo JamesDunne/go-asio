@@ -1,111 +1,10 @@
 package asio
 
 import (
-	"bytes"
 	"fmt"
 	"syscall"
 	"unsafe"
 )
-
-type winUTF16string struct {
-	utf16  []uint16
-	length uint32
-}
-
-func (utfstring *winUTF16string) String() string {
-	return syscall.UTF16ToString(utfstring.utf16[:utfstring.length])
-}
-
-func (utfstring *winUTF16string) Addr() *uint16 {
-	return &utfstring.utf16[0]
-}
-
-func RegOpenKey(key syscall.Handle, subkey string, desiredAccess uint32) (handle syscall.Handle, err error) {
-	var subkeyUTF16 *uint16
-	subkeyUTF16, err = syscall.UTF16PtrFromString(subkey)
-	if err != nil {
-		return syscall.InvalidHandle, err
-	}
-
-	err = syscall.RegOpenKeyEx(
-		key,
-		subkeyUTF16,
-		uint32(0),
-		desiredAccess,
-		&handle,
-	)
-	return
-}
-
-// interface IASIO : public IUnknown {
-type pIASIOVtbl struct {
-	// v-tables are flattened in memory for simple direct cases like this.
-	pIUnknownVtbl
-
-	//virtual ASIOBool init(void *sysHandle) = 0;
-	pInit uintptr
-	//virtual void getDriverName(char *name) = 0;
-	pGetDriverName uintptr
-
-	//virtual long getDriverVersion() = 0;
-	pGetDriverVersion uintptr
-	//virtual void getErrorMessage(char *string) = 0;
-	//virtual ASIOError start() = 0;
-	//virtual ASIOError stop() = 0;
-	//virtual ASIOError getChannels(long *numInputChannels, long *numOutputChannels) = 0;
-	//virtual ASIOError getLatencies(long *inputLatency, long *outputLatency) = 0;
-	//virtual ASIOError getBufferSize(long *minSize, long *maxSize, long *preferredSize, long *granularity) = 0;
-	//virtual ASIOError canSampleRate(ASIOSampleRate sampleRate) = 0;
-	//virtual ASIOError getSampleRate(ASIOSampleRate *sampleRate) = 0;
-	//virtual ASIOError setSampleRate(ASIOSampleRate sampleRate) = 0;
-	//virtual ASIOError getClockSources(ASIOClockSource *clocks, long *numSources) = 0;
-	//virtual ASIOError setClockSource(long reference) = 0;
-	//virtual ASIOError getSamplePosition(ASIOSamples *sPos, ASIOTimeStamp *tStamp) = 0;
-	//virtual ASIOError getChannelInfo(ASIOChannelInfo *info) = 0;
-	//virtual ASIOError createBuffers(ASIOBufferInfo *bufferInfos, long numChannels, long bufferSize, ASIOCallbacks *callbacks) = 0;
-	//virtual ASIOError disposeBuffers() = 0;
-	//virtual ASIOError controlPanel() = 0;
-	//virtual ASIOError future(long selector,void *opt) = 0;
-	//virtual ASIOError outputReady() = 0;
-	// }
-}
-
-type IASIO struct {
-	vtbl_asio *pIASIOVtbl
-}
-
-func (obj *IASIO) AsIUnknown() *IUnknown { return (*IUnknown)(unsafe.Pointer(obj)) }
-
-func (obj *IASIO) Init(sysHandle uintptr) (ok bool, err error) {
-	r1, _, errno := syscall.Syscall(obj.vtbl_asio.pInit, 2,
-		uintptr(unsafe.Pointer(obj)),
-		sysHandle,
-		uintptr(0))
-	if errno != 0 {
-		err = errno
-	}
-	ok = (r1 != 0)
-	return
-}
-
-func (obj *IASIO) GetDriverName() string {
-	name := [128]byte{0}
-	syscall.Syscall(obj.vtbl_asio.pGetDriverName, 2,
-		uintptr(unsafe.Pointer(obj)),
-		uintptr(unsafe.Pointer(&name[0])),
-		uintptr(0))
-
-	lz := bytes.IndexByte(name[:], byte(0))
-	return string(name[:lz])
-}
-
-func (obj *IASIO) GetDriverVersion() int32 {
-	r1, _, _ := syscall.Syscall(obj.vtbl_asio.pGetDriverVersion, 2,
-		uintptr(unsafe.Pointer(obj)),
-		uintptr(0),
-		uintptr(0))
-	return int32(r1)
-}
 
 type ASIODriver struct {
 	Name  string
@@ -124,7 +23,7 @@ func (drv *ASIODriver) Open() (err error) {
 
 	//drv.obj.AsIUnknown().AddRef()
 
-	ok, err := drv.obj.Init(uintptr(0))
+	ok := drv.obj.Init(uintptr(0))
 	if !ok {
 		return fmt.Errorf("Could not open ASIO driver")
 	}
