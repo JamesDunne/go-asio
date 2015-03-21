@@ -76,6 +76,8 @@ func TestListDrivers(t *testing.T) {
 		fmt.Printf("setSampleRate(44100): %v\n", err)
 
 		// outputReady
+		fmt.Printf("outputReady():        %v\n", drv.OutputReady())
+
 		// createBuffers (set callbacks)
 		// getChannelInfo (for N)
 		// getLatencies

@@ -202,22 +202,22 @@ func (drv *IASIO) GetErrorMessage() string {
 }
 
 func (drv *IASIO) Start() (err error) {
-	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pStart, 1,
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pStart, 1,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(0),
 		uintptr(0))
-	if derr := asError(drv, errno); derr != nil {
+	if derr := asError(drv, ase); derr != nil {
 		return derr
 	}
 	return nil
 }
 
 func (drv *IASIO) Stop() (err error) {
-	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pStop, 1,
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pStop, 1,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(0),
 		uintptr(0))
-	if derr := asError(drv, errno); derr != nil {
+	if derr := asError(drv, ase); derr != nil {
 		return derr
 	}
 	return nil
@@ -227,12 +227,12 @@ func (drv *IASIO) Stop() (err error) {
 func (drv *IASIO) GetChannels() (numInputChannels, numOutputChannels int, err error) {
 	var tmpInputChannels, tmpOutputChannels uintptr
 
-	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pGetChannels, 3,
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pGetChannels, 3,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&tmpInputChannels)),
 		uintptr(unsafe.Pointer(&tmpOutputChannels)))
 
-	serr := asError(drv, errno)
+	serr := asError(drv, ase)
 	if serr != nil {
 		return 0, 0, serr
 	}
@@ -244,12 +244,12 @@ func (drv *IASIO) GetChannels() (numInputChannels, numOutputChannels int, err er
 func (drv *IASIO) GetLatencies() (inputLatency, outputLatency int, err error) {
 	var tmpInputLatency, tmpOutputLatency uintptr
 
-	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pGetLatencies, 3,
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pGetLatencies, 3,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&tmpInputLatency)),
 		uintptr(unsafe.Pointer(&tmpOutputLatency)))
 
-	serr := asError(drv, errno)
+	serr := asError(drv, ase)
 	if serr != nil {
 		return 0, 0, serr
 	}
@@ -261,7 +261,7 @@ func (drv *IASIO) GetLatencies() (inputLatency, outputLatency int, err error) {
 func (drv *IASIO) GetBufferSize() (minSize, maxSize, preferredSize, granularity int, err error) {
 	var tmpminSize, tmpmaxSize, tmppreferredSize, tmpgranularity uintptr
 
-	errno, _, _ := syscall.Syscall6(drv.vtbl_asio.pGetBufferSize, 5,
+	ase, _, _ := syscall.Syscall6(drv.vtbl_asio.pGetBufferSize, 5,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&tmpminSize)),
 		uintptr(unsafe.Pointer(&tmpmaxSize)),
@@ -270,7 +270,7 @@ func (drv *IASIO) GetBufferSize() (minSize, maxSize, preferredSize, granularity 
 		uintptr(0),
 	)
 
-	serr := asError(drv, errno)
+	serr := asError(drv, ase)
 	if serr != nil {
 		return 0, 0, 0, 0, serr
 	}
@@ -280,24 +280,28 @@ func (drv *IASIO) GetBufferSize() (minSize, maxSize, preferredSize, granularity 
 
 // typedef double ASIOSampleRate;
 ////virtual ASIOError canSampleRate(ASIOSampleRate sampleRate) = 0;
-func (drv *IASIO) CanSampleRate(sampleRate float64) (can bool) {
-	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pCanSampleRate, 2,
+func (drv *IASIO) CanSampleRate(sampleRate float64) (err error) {
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pCanSampleRate, 2,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&sampleRate)),
 		uintptr(0))
 
-	return errno != uintptr(0)
+	serr := asError(drv, ase)
+	if serr != nil {
+		return serr
+	}
+	return nil
 }
 
 ////virtual ASIOError getSampleRate(ASIOSampleRate *sampleRate) = 0;
 //pGetSampleRate uintptr
 func (drv *IASIO) GetSampleRate() (sampleRate float64, err error) {
-	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pGetSampleRate, 2,
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pGetSampleRate, 2,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&sampleRate)),
 		uintptr(0))
 
-	serr := asError(drv, errno)
+	serr := asError(drv, ase)
 	if serr != nil {
 		return 0., serr
 	}
@@ -308,12 +312,12 @@ func (drv *IASIO) GetSampleRate() (sampleRate float64, err error) {
 ////virtual ASIOError setSampleRate(ASIOSampleRate sampleRate) = 0;
 //pSetSampleRate uintptr
 func (drv *IASIO) SetSampleRate(sampleRate float64) (err error) {
-	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pSetSampleRate, 2,
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pSetSampleRate, 2,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&sampleRate)),
 		uintptr(0))
 
-	serr := asError(drv, errno)
+	serr := asError(drv, ase)
 	if serr != nil {
 		return serr
 	}
@@ -325,10 +329,13 @@ func (drv *IASIO) SetSampleRate(sampleRate float64) (err error) {
 //pGetClockSources uintptr
 ////virtual ASIOError setClockSource(long reference) = 0;
 //pSetClockSource uintptr
+
 ////virtual ASIOError getSamplePosition(ASIOSamples *sPos, ASIOTimeStamp *tStamp) = 0;
 //pGetSamplePosition uintptr
+
 ////virtual ASIOError getChannelInfo(ASIOChannelInfo *info) = 0;
 //pGetChannelInfo uintptr
+
 ////virtual ASIOError createBuffers(ASIOBufferInfo *bufferInfos, long numChannels, long bufferSize, ASIOCallbacks *callbacks) = 0;
 //pCreateBuffers uintptr
 ////virtual ASIOError disposeBuffers() = 0;
@@ -337,5 +344,14 @@ func (drv *IASIO) SetSampleRate(sampleRate float64) (err error) {
 //pControlPanel uintptr
 ////virtual ASIOError future(long selector,void *opt) = 0;
 //pFuture uintptr
+
 ////virtual ASIOError outputReady() = 0;
 //pOutputReady uintptr
+func (drv *IASIO) OutputReady() bool {
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pOutputReady, 1,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(0),
+		uintptr(0))
+
+	return int32(ase) == int32(ASE_OK)
+}
