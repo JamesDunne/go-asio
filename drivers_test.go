@@ -78,6 +78,9 @@ func TestListDrivers(t *testing.T) {
 		// outputReady
 		fmt.Printf("outputReady():        %v\n", drv.OutputReady())
 
+		// open control panel:
+		//drv.ControlPanel()
+
 		// createBuffers (set callbacks)
 		// getChannelInfo (for N)
 
