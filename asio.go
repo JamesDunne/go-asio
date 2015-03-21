@@ -153,7 +153,15 @@ func (drv *IASIO) GetErrorMessage() string {
 }
 
 func (drv *IASIO) Start() error {
-	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pStart, 2,
+	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pStart, 1,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(0),
+		uintptr(0))
+	return asError(drv, errno)
+}
+
+func (drv *IASIO) Stop() error {
+	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pStop, 1,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(0),
 		uintptr(0))
