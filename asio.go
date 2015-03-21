@@ -71,13 +71,50 @@ func (err *Error) Error() string {
 	return err.msg
 }
 
+type SampleType int32
+
+const (
+	ASIOSTInt16MSB   SampleType = 0
+	ASIOSTInt24MSB   SampleType = 1 // used for 20 bits as well
+	ASIOSTInt32MSB   SampleType = 2
+	ASIOSTFloat32MSB SampleType = 3 // IEEE 754 32 bit float
+	ASIOSTFloat64MSB SampleType = 4 // IEEE 754 64 bit double float
+
+	// these are used for 32 bit data buffer, with different alignment of the data inside
+	// 32 bit PCI bus systems can be more easily used with these
+	ASIOSTInt32MSB16 SampleType = 8  // 32 bit data with 16 bit alignment
+	ASIOSTInt32MSB18 SampleType = 9  // 32 bit data with 18 bit alignment
+	ASIOSTInt32MSB20 SampleType = 10 // 32 bit data with 20 bit alignment
+	ASIOSTInt32MSB24 SampleType = 11 // 32 bit data with 24 bit alignment
+
+	ASIOSTInt16LSB   SampleType = 16
+	ASIOSTInt24LSB   SampleType = 17 // used for 20 bits as well
+	ASIOSTInt32LSB   SampleType = 18
+	ASIOSTFloat32LSB SampleType = 19 // IEEE 754 32 bit float, as found on Intel x86 architecture
+	ASIOSTFloat64LSB SampleType = 20 // IEEE 754 64 bit double float, as found on Intel x86 architecture
+
+	// these are used for 32 bit data buffer, with different alignment of the data inside
+	// 32 bit PCI bus systems can more easily used with these
+	ASIOSTInt32LSB16 SampleType = 24 // 32 bit data with 18 bit alignment
+	ASIOSTInt32LSB18 SampleType = 25 // 32 bit data with 18 bit alignment
+	ASIOSTInt32LSB20 SampleType = 26 // 32 bit data with 20 bit alignment
+	ASIOSTInt32LSB24 SampleType = 27 // 32 bit data with 24 bit alignment
+
+	//	ASIO DSD format.
+	ASIOSTDSDInt8LSB1 SampleType = 32 // DSD 1 bit data, 8 samples per byte. First sample in Least significant bit.
+	ASIOSTDSDInt8MSB1 SampleType = 33 // DSD 1 bit data, 8 samples per byte. First sample in Most significant bit.
+	ASIOSTDSDInt8NER8 SampleType = 40 // DSD 8 bit data, 1 sample per byte. No Endianness required.
+)
+
 type rawChannelInfo struct {
 	Channel      int32
 	IsInput      int32
 	IsActive     int32
 	ChannelGroup int32
-	SampleType   int32
+	SampleType   SampleType
 	Name         [32]byte
+
+	// NOTE(jsd): for struct layout, `long` is `int32` regardless of `uintptr` size.
 
 	//	long channel;			// on input, channel index
 	//	ASIOBool isInput;		// on input
