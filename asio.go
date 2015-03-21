@@ -229,13 +229,36 @@ func (drv *IASIO) GetBufferSize() (minSize, maxSize, preferredSize, granularity 
 	return int(tmpminSize), int(tmpmaxSize), int(tmppreferredSize), int(tmpgranularity), nil
 }
 
-//pGetBufferSize uintptr
+// typedef double ASIOSampleRate;
 ////virtual ASIOError canSampleRate(ASIOSampleRate sampleRate) = 0;
-//pCanSampleRate uintptr
+func (drv *IASIO) CanSampleRate(sampleRate float64) (can bool) {
+	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pCanSampleRate, 2,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(sampleRate),
+		uintptr(0))
+
+	return errno != uintptr(0)
+}
+
 ////virtual ASIOError getSampleRate(ASIOSampleRate *sampleRate) = 0;
 //pGetSampleRate uintptr
+func (drv *IASIO) GetSampleRate() (sampleRate float64, err error) {
+	errno, _, _ := syscall.Syscall(drv.vtbl_asio.pGetSampleRate, 2,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(unsafe.Pointer(&sampleRate)),
+		uintptr(0))
+
+	serr := asError(drv, errno)
+	if serr != nil {
+		return 0., serr
+	}
+
+	return sampleRate, nil
+}
+
 ////virtual ASIOError setSampleRate(ASIOSampleRate sampleRate) = 0;
 //pSetSampleRate uintptr
+
 ////virtual ASIOError getClockSources(ASIOClockSource *clocks, long *numSources) = 0;
 //pGetClockSources uintptr
 ////virtual ASIOError setClockSource(long reference) = 0;

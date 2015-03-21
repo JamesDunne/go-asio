@@ -59,7 +59,18 @@ func TestListDrivers(t *testing.T) {
 		}
 		fmt.Printf("getBufferSize():      %d, %d, %d, %d\n", minSize, maxSize, preferredSize, granularity)
 
+		// canSampleRate
+		ok := drv.CanSampleRate(44100.)
+		fmt.Printf("canSampleRate(44100): %v\n", ok)
+
 		// getSampleRate
+		srate, err := drv.GetSampleRate()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		fmt.Printf("getSampleRate():      %v\n", srate)
+
 		// outputReady
 		// createBuffers (set callbacks)
 		// getChannelInfo (for N)
