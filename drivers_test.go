@@ -80,6 +80,7 @@ func TestListDrivers(t *testing.T) {
 
 		// createBuffers (set callbacks)
 		// getChannelInfo (for N)
+
 		// getLatencies
 		latin, latout, err := drv.GetLatencies()
 		if err != nil {
