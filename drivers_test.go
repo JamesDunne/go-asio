@@ -35,5 +35,22 @@ func TestListDrivers(t *testing.T) {
 
 		fmt.Printf("getDriverName():    '%s'\n", ua1000.GetDriverName())
 		fmt.Printf("getDriverVersion(): %d\n", ua1000.GetDriverVersion())
+
+		// ASIO startup procedure:
+
+		// getChannels
+		// getBufferSize
+		// getSampleRate
+		// outputReady
+		// createBuffers (set callbacks)
+		// getChannelInfo (for N)
+		// getLatencies
+		// start
+
+		// wait
+
+		// stop
+		// disposeBuffers
+		// obj->Release()
 	}
 }
