@@ -83,6 +83,22 @@ func TestListDrivers(t *testing.T) {
 
 		// createBuffers (set callbacks)
 		// getChannelInfo (for N)
+		for i := 0; i < in; i++ {
+			cinfo, err := drv.GetChannelInfo(i, true)
+			if err != nil {
+				t.Error(err)
+				continue
+			}
+			fmt.Printf(" IN%-2d: active=%v, group=%d, type=%d, name=%s\n", i+1, cinfo.IsActive, cinfo.ChannelGroup, cinfo.SampleType, cinfo.Name)
+		}
+		for i := 0; i < out; i++ {
+			cinfo, err := drv.GetChannelInfo(i, false)
+			if err != nil {
+				t.Error(err)
+				continue
+			}
+			fmt.Printf("OUT%-2d: active=%v, group=%d, type=%d, name=%s\n", i+1, cinfo.IsActive, cinfo.ChannelGroup, cinfo.SampleType, cinfo.Name)
+		}
 
 		// getLatencies
 		latin, latout, err := drv.GetLatencies()

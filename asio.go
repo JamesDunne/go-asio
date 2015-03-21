@@ -71,7 +71,32 @@ func (err *Error) Error() string {
 	return err.msg
 }
 
-type ASIOCallbacks struct {
+type rawChannelInfo struct {
+	Channel      int32
+	IsInput      int32
+	IsActive     int32
+	ChannelGroup int32
+	SampleType   int32
+	Name         [32]byte
+
+	//	long channel;			// on input, channel index
+	//	ASIOBool isInput;		// on input
+	//	ASIOBool isActive;		// on exit
+	//	long channelGroup;		// dto
+	//	ASIOSampleType type;	// dto
+	//	char name[32];			// dto
+}
+
+type ChannelInfo struct {
+	Channel      int
+	IsInput      bool
+	IsActive     bool
+	ChannelGroup int
+	SampleType   int
+	Name         string
+}
+
+type Callbacks struct {
 	//void (*bufferSwitch) (long doubleBufferIndex, ASIOBool directProcess);
 	//	// bufferSwitch indicates that both input and output are to be processed.
 	//	// the current buffer half index (0 for A, 1 for B) determines
@@ -334,8 +359,43 @@ func (drv *IASIO) SetSampleRate(sampleRate float64) (err error) {
 ////virtual ASIOError getSamplePosition(ASIOSamples *sPos, ASIOTimeStamp *tStamp) = 0;
 //pGetSamplePosition uintptr
 
+func bool_int32(a bool) int32 {
+	if a {
+		return 1
+	}
+	return 0
+}
+
+func int32_bool(a int32) bool {
+	return a != 0
+}
+
 ////virtual ASIOError getChannelInfo(ASIOChannelInfo *info) = 0;
 //pGetChannelInfo uintptr
+func (drv *IASIO) GetChannelInfo(channel int, isInput bool) (info *ChannelInfo, err error) {
+	raw := &rawChannelInfo{
+		Channel: int32(channel),
+		IsInput: bool_int32(isInput),
+	}
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pGetChannelInfo, 2,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(unsafe.Pointer(raw)),
+		uintptr(0))
+
+	if derr := drv.asError(ase); derr != nil {
+		return nil, derr
+	}
+
+	info = &ChannelInfo{
+		Channel:      int(raw.Channel),
+		IsInput:      int32_bool(raw.IsInput),
+		IsActive:     int32_bool(raw.IsActive),
+		ChannelGroup: int(raw.ChannelGroup),
+		SampleType:   int(raw.SampleType),
+		Name:         string(raw.Name[:]),
+	}
+	return info, nil
+}
 
 ////virtual ASIOError createBuffers(ASIOBufferInfo *bufferInfos, long numChannels, long bufferSize, ASIOCallbacks *callbacks) = 0;
 //pCreateBuffers uintptr
