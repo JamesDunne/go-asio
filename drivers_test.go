@@ -1,6 +1,7 @@
 package asio
 
 import "testing"
+import "fmt"
 
 func TestListDrivers(t *testing.T) {
 	drivers, err := ListDrivers()
@@ -10,23 +11,23 @@ func TestListDrivers(t *testing.T) {
 	}
 
 	for _, drv := range drivers {
-		t.Logf("%s: %s\n", drv.CLSID, drv.Name)
+		fmt.Printf("%s: %s\n", drv.CLSID, drv.Name)
 	}
 
 	{
-		t.Log("CoInitialize(0)")
+		fmt.Printf("CoInitialize(0)\n")
 		CoInitialize(0)
-		defer t.Log("CoUninitialize()")
+		defer fmt.Printf("CoUninitialize()\n")
 		defer CoUninitialize()
 
 		ua1000 := drivers["UA-1000"]
 
-		t.Log("ua1000.Open()")
+		fmt.Printf("ua1000.Open()\n")
 		ua1000.Open()
-		defer t.Log("ua1000.Close()")
+		defer fmt.Printf("ua1000.Close()\n")
 		defer ua1000.Close()
 
-		t.Log("UA-1000 opened.")
-		t.Logf("%s\n", ua1000.GetDriverName())
+		fmt.Printf("UA-1000 opened.\n")
+		fmt.Printf("%s\n", ua1000.GetDriverName())
 	}
 }

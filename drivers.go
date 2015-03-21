@@ -36,16 +36,10 @@ func RegOpenKey(key syscall.Handle, subkey string, desiredAccess uint32) (handle
 	return
 }
 
-type ASIODriver struct {
-	Name  string
-	CLSID string
-	GUID  *GUID
+// interface IASIO : public IUnknown {
+type pIASIOVtbl struct {
+	pIUnknownVtbl
 
-	com   *IDispatch
-	iasio *IASIO
-}
-
-type IASIO struct {
 	//virtual ASIOBool init(void *sysHandle) = 0;
 	pInit uintptr
 	//virtual void getDriverName(char *name) = 0;
@@ -70,31 +64,60 @@ type IASIO struct {
 	//virtual ASIOError controlPanel() = 0;
 	//virtual ASIOError future(long selector,void *opt) = 0;
 	//virtual ASIOError outputReady() = 0;
+	// }
 }
 
-func (drv *ASIODriver) Open() error {
-	unk, err := CreateInstance(drv.GUID, drv.GUID)
-	if err != nil {
-		return err
-	}
-	drv.com = unk
+type IASIO struct {
+	vtbl_asio *pIASIOVtbl
+}
 
-	drv.iasio = (*IASIO)(unsafe.Pointer(unk.lpVtbl))
-	return nil
+func (obj *IASIO) AsIUnknown() *IUnknown { return (*IUnknown)(unsafe.Pointer(obj)) }
+func (obj *IASIO) Init(sysHandle uintptr) (r1 uintptr, err error) {
+	hr, r1, _ := syscall.Syscall(obj.vtbl_asio.pInit, 2,
+		uintptr(unsafe.Pointer(obj)),
+		sysHandle,
+		uintptr(0))
+	if hr != 0 {
+		err = syscall.Errno(hr)
+	}
+	return
+}
+
+type ASIODriver struct {
+	Name  string
+	CLSID string
+	GUID  *GUID
+
+	obj *IASIO
+}
+
+func (drv *ASIODriver) Open() (err error) {
+	disp, err := CreateInstance(drv.GUID, drv.GUID)
+	if err != nil {
+		return
+	}
+	drv.obj = (*IASIO)(unsafe.Pointer(disp))
+	err = drv.obj.AsIUnknown().AddRef()
+	if err != nil {
+		return
+	}
+
+	r1, err := drv.obj.Init(uintptr(unsafe.Pointer(drv.obj)))
+	fmt.Println(r1)
+	fmt.Println(err)
+
+	return
 }
 
 func (drv *ASIODriver) Close() {
-	drv.com.Release()
+	drv.obj.AsIUnknown().Release()
 }
 
 func (drv *ASIODriver) GetDriverName() string {
-	fmt.Println(drv.iasio.pGetDriverName)
-
 	name := [128]byte{}
-	// TODO: fixme!
-	syscall.Syscall(drv.iasio.pGetDriverName, 2,
-		uintptr(unsafe.Pointer(drv.iasio)),
-		uintptr(unsafe.Pointer(&name)),
+	syscall.Syscall(drv.obj.vtbl_asio.pGetDriverName, 2,
+		uintptr(unsafe.Pointer(drv.obj)),
+		uintptr(unsafe.Pointer(&name[0])),
 		uintptr(0))
 	return string(name[:])
 }
