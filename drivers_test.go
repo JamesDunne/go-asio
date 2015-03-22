@@ -109,7 +109,7 @@ func TestListDrivers(t *testing.T) {
 		}
 
 		// createBuffers (set callbacks)
-		err = drv.CreateBuffers(bufferDescriptors, minSize, Callbacks{
+		err = drv.CreateBuffers(bufferDescriptors, preferredSize, Callbacks{
 			BufferSwitch: func(doubleBufferIndex int, directProcess bool) {
 				//drv.
 			},
@@ -118,6 +118,9 @@ func TestListDrivers(t *testing.T) {
 			t.Error(err)
 			return
 		}
+		defer fmt.Printf("disposeBuffers()\n")
+		defer drv.DisposeBuffers()
+		fmt.Printf("createBuffers()\n")
 
 		// getLatencies
 		latin, latout, err := drv.GetLatencies()
@@ -128,10 +131,23 @@ func TestListDrivers(t *testing.T) {
 		fmt.Printf("getLatencies():       %d, %d\n", latin, latout)
 
 		// start
+		err = drv.Start()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		fmt.Printf("start()\n")
 
 		// wait
 
 		// stop
+		err = drv.Stop()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		fmt.Printf("stop()\n")
+
 		// disposeBuffers
 		// obj->Release()
 	}

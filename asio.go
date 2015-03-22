@@ -7,6 +7,8 @@ import (
 )
 
 /*
+#include <string.h>
+
 typedef long ASIOBool;
 typedef double ASIOSampleRate;
 
@@ -48,52 +50,158 @@ typedef struct ASIOTime                          // both input/output
 	struct ASIOTimeCode     timeCode;       // optional, evaluated if (timeCode.flags & kTcValid)
 } ASIOTime;
 
+typedef enum AsioTimeInfoFlags
+{
+	kSystemTimeValid        = 1,            // must always be valid
+	kSamplePositionValid    = 1 << 1,       // must always be valid
+	kSampleRateValid        = 1 << 2,
+	kSpeedValid             = 1 << 3,
+
+	kSampleRateChanged      = 1 << 4,
+	kClockSourceChanged     = 1 << 5
+} AsioTimeInfoFlags;
+
+// asioMessage selectors
+enum
+{
+	kAsioSelectorSupported = 1,	// selector in <value>, returns 1L if supported,
+								// 0 otherwise
+    kAsioEngineVersion,			// returns engine (host) asio implementation version,
+								// 2 or higher
+	kAsioResetRequest,			// request driver reset. if accepted, this
+								// will close the driver (ASIO_Exit() ) and
+								// re-open it again (ASIO_Init() etc). some
+								// drivers need to reconfigure for instance
+								// when the sample rate changes, or some basic
+								// changes have been made in ASIO_ControlPanel().
+								// returns 1L; note the request is merely passed
+								// to the application, there is no way to determine
+								// if it gets accepted at this time (but it usually
+								// will be).
+	kAsioBufferSizeChange,		// not yet supported, will currently always return 0L.
+								// for now, use kAsioResetRequest instead.
+								// once implemented, the new buffer size is expected
+								// in <value>, and on success returns 1L
+	kAsioResyncRequest,			// the driver went out of sync, such that
+								// the timestamp is no longer valid. this
+								// is a request to re-start the engine and
+								// slave devices (sequencer). returns 1 for ok,
+								// 0 if not supported.
+	kAsioLatenciesChanged, 		// the drivers latencies have changed. The engine
+								// will refetch the latencies.
+	kAsioSupportsTimeInfo,		// if host returns true here, it will expect the
+								// callback bufferSwitchTimeInfo to be called instead
+								// of bufferSwitch
+	kAsioSupportsTimeCode,		//
+	kAsioMMCCommand,			// unused - value: number of commands, message points to mmc commands
+	kAsioSupportsInputMonitor,	// kAsioSupportsXXX return 1 if host supports this
+	kAsioSupportsInputGain,     // unused and undefined
+	kAsioSupportsInputMeter,    // unused and undefined
+	kAsioSupportsOutputGain,    // unused and undefined
+	kAsioSupportsOutputMeter,   // unused and undefined
+	kAsioOverload,              // driver detected an overload
+
+	kAsioNumMessageSelectors
+};
+
+// Callback function pointer typedefs:
 typedef void (*bufferSwitch) (long doubleBufferIndex, ASIOBool directProcess);
+typedef void (*sampleRateDidChange) (ASIOSampleRate sRate);
+typedef long (*asioMessage) (long selector, long value, void* message, double* opt);
+typedef ASIOTime* (*bufferSwitchTimeInfo) (ASIOTime* params, long doubleBufferIndex, ASIOBool directProcess);
 
-bufferSwitch go_BufferSwitch;
+// Pointer to Go function impl:
+bufferSwitchTimeInfo go_BufferSwitchTimeInfo;
 
-typedef struct ASIOCallbacks
+long tramp_asioMessage(long selector, long value, void* message, double* opt)
 {
-	void (*bufferSwitch) (long doubleBufferIndex, ASIOBool directProcess);
-		// bufferSwitch indicates that both input and output are to be processed.
-		// the current buffer half index (0 for A, 1 for B) determines
-		// - the output buffer that the host should start to fill. the other buffer
-		//   will be passed to output hardware regardless of whether it got filled
-		//   in time or not.
-		// - the input buffer that is now filled with incoming data. Note that
-		//   because of the synchronicity of i/o, the input always has at
-		//   least one buffer latency in relation to the output.
-		// directProcess suggests to the host whether it should immedeately
-		// start processing (directProcess == ASIOTrue), or whether its process
-		// should be deferred because the call comes from a very low level
-		// (for instance, a high level priority interrupt), and direct processing
-		// would cause timing instabilities for the rest of the system. If in doubt,
-		// directProcess should be set to ASIOFalse.
-		// Note: bufferSwitch may be called at interrupt time for highest efficiency.
-
-	void (*sampleRateDidChange) (ASIOSampleRate sRate);
-		// gets called when the AudioStreamIO detects a sample rate change
-		// If sample rate is unknown, 0 is passed (for instance, clock loss
-		// when externally synchronized).
-
-	long (*asioMessage) (long selector, long value, void* message, double* opt);
-		// generic callback for various purposes, see selectors below.
-		// note this is only present if the asio version is 2 or higher
-
-	ASIOTime* (*bufferSwitchTimeInfo) (ASIOTime* params, long doubleBufferIndex, ASIOBool directProcess);
-		// new callback with time info. makes ASIOGetSamplePosition() and various
-		// calls to ASIOGetSampleRate obsolete,
-		// and allows for timecode sync etc. to be preferred; will be used if
-		// the driver calls asioMessage with selector kAsioSupportsTimeInfo.
-} ASIOCallbacks;
-
-// Trampoline to jump to Go function:
-void tramp_BufferSwitch(long doubleBufferIndex, ASIOBool directProcess)
-{
-	go_BufferSwitch(doubleBufferIndex, directProcess);
+    // currently the parameters "value", "message" and "opt" are not used.
+    long ret = 0;
+    switch(selector)
+    {
+    case kAsioSelectorSupported:
+        if(value == kAsioResetRequest
+            || value == kAsioEngineVersion
+            || value == kAsioResyncRequest
+            || value == kAsioLatenciesChanged
+            // the following three were added for ASIO 2.0, you don't necessarily have to support them
+            || value == kAsioSupportsTimeInfo
+            || value == kAsioSupportsTimeCode
+            || value == kAsioSupportsInputMonitor)
+            ret = 1L;
+        break;
+    case kAsioResetRequest:
+        // defer the task and perform the reset of the driver during the next "safe" situation
+        // You cannot reset the driver right now, as this code is called from the driver.
+        // Reset the driver is done by completely destruct is. I.e. ASIOStop(), ASIODisposeBuffers(), Destruction
+        // Afterwards you initialize the driver again.
+        ret = 1L;
+        break;
+    case kAsioResyncRequest:
+        // This informs the application, that the driver encountered some non fatal data loss.
+        // It is used for synchronization purposes of different media.
+        // Added mainly to work around the Win16Mutex problems in Windows 95/98 with the
+        // Windows Multimedia system, which could loose data because the Mutex was hold too long
+        // by another thread.
+        // However a driver can issue it in other situations, too.
+        ret = 1L;
+        break;
+    case kAsioLatenciesChanged:
+        // This will inform the host application that the drivers were latencies changed.
+        // Beware, it this does not mean that the buffer sizes have changed!
+        // You might need to update internal delay data.
+        ret = 1L;
+        break;
+    case kAsioEngineVersion:
+        // return the supported ASIO version of the host application
+        // If a host applications does not implement this selector, ASIO 1.0 is assumed
+        // by the driver
+        ret = 2L;
+        break;
+    case kAsioSupportsTimeInfo:
+        // informs the driver wether the asioCallbacks.bufferSwitchTimeInfo() callback
+        // is supported.
+        // For compatibility with ASIO 1.0 drivers the host application should always support
+        // the "old" bufferSwitch method, too.
+        ret = 1;
+        break;
+    case kAsioSupportsTimeCode:
+        // informs the driver wether application is interested in time code info.
+        // If an application does not need to know about time code, the driver has less work
+        // to do.
+        ret = 0;
+        break;
+    }
+    return ret;
 }
 
-bufferSwitch C_BufferSwitch = tramp_BufferSwitch;
+// Main audio processing callback.
+// NOTE: Called on a separate thread from main() thread.
+ASIOTime *tramp_bufferSwitchTimeInfo(ASIOTime *timeInfo, long index, ASIOBool processNow)
+{
+	return timeInfo;
+	//return go_BufferSwitchTimeInfo(timeInfo, index, processNow);
+}
+
+// Trampoline to jump to Go function:
+void tramp_bufferSwitch(long index, ASIOBool processNow)
+{
+    // the actual processing callback.
+    // Beware that this is normally in a seperate thread, hence be sure that you take care
+    // about thread synchronization. This is omitted here for simplicity.
+
+    // as this is a "back door" into the bufferSwitchTimeInfo a timeInfo needs to be created
+    // though it will only set the timeInfo.samplePosition and timeInfo.systemTime fields and the according flags
+    ASIOTime  timeInfo;
+    memset (&timeInfo, 0, sizeof (timeInfo));
+
+    // get the time stamp of the buffer, not necessary if no
+    // synchronization to other media is required
+    //if (ASIOGetSamplePosition(&timeInfo.timeInfo.samplePosition, &timeInfo.timeInfo.systemTime) == 0)
+    //    timeInfo.timeInfo.flags = kSystemTimeValid | kSamplePositionValid;
+
+    tramp_bufferSwitchTimeInfo(&timeInfo, index, processNow);
+}
 */
 import "C"
 
@@ -535,40 +643,40 @@ func (drv *IASIO) GetChannelInfo(channel int, isInput bool) (info *ChannelInfo, 
 	return info, nil
 }
 
+type callbacks struct {
+	pBufferSwitch         uintptr
+	pSampleRateDidChange  uintptr
+	pASIOMessage          uintptr
+	pBufferSwitchTimeInfo uintptr
+}
+
+var the_callbacks = &callbacks{}
+
 //virtual ASIOError createBuffers(ASIOBufferInfo *bufferInfos, long numChannels, long bufferSize, ASIOCallbacks *callbacks) = 0;
 func (drv *IASIO) CreateBuffers(bufferDescriptors []BufferInfo, bufferSize int, callbacks Callbacks) (err error) {
 	// Prepare the raw struct for holding ASIOBufferInfos:
-	rawBufferInfos := make([]rawBufferInfo, len(bufferDescriptors), len(bufferDescriptors))
-	for _, desc := range bufferDescriptors {
-		rawBufferInfos = append(rawBufferInfos, rawBufferInfo{
-			channel: int32(desc.Channel),
-			isInput: bool_int32(desc.IsInput),
-			buffers: [2]*int32{nil, nil},
-		})
+	rawBufferInfos := make([]rawBufferInfo, len(bufferDescriptors))
+	for i, desc := range bufferDescriptors {
+		rawBufferInfos[i].channel = int32(desc.Channel)
+		rawBufferInfos[i].isInput = bool_int32(desc.IsInput)
+		rawBufferInfos[i].buffers = [2]*int32{nil, nil}
 	}
 
-	// Set global callback. ASIO callbacks do not supply a context argument and
-	// so cannot generally be made driver-specific.
-	go_BufferSwitch = callbacks.BufferSwitch
+	// Set global callbacks.
+	// NOTE: ASIO callbacks do not supply a context argument and so cannot generally be made driver-specific.
+	go_BufferSwitchTimeInfo = callbacks.BufferSwitchTimeInfo
 
-	rawCallbacks := &struct {
-		pBufferSwitch         uintptr
-		pSampleRateDidChange  uintptr
-		pASIOMessage          uintptr
-		pBufferSwitchTimeInfo uintptr
-	}{
-		pBufferSwitch:         uintptr(unsafe.Pointer(C.C_BufferSwitch)),
-		pSampleRateDidChange:  uintptr(0),
-		pASIOMessage:          uintptr(0),
-		pBufferSwitchTimeInfo: uintptr(0),
-	}
+	the_callbacks.pBufferSwitch = uintptr(unsafe.Pointer(C.tramp_bufferSwitch))
+	the_callbacks.pSampleRateDidChange = uintptr(0)
+	the_callbacks.pASIOMessage = uintptr(unsafe.Pointer(C.tramp_asioMessage))
+	the_callbacks.pBufferSwitchTimeInfo = uintptr(unsafe.Pointer(C.tramp_bufferSwitchTimeInfo))
 
 	ase, _, _ := syscall.Syscall6(drv.vtbl_asio.pCreateBuffers, 5,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&rawBufferInfos[0])),
 		uintptr(len(bufferDescriptors)),
 		uintptr(bufferSize),
-		uintptr(unsafe.Pointer(rawCallbacks)),
+		uintptr(unsafe.Pointer(the_callbacks)),
 		uintptr(0))
 
 	if derr := drv.asError(ase); derr != nil {
@@ -583,8 +691,18 @@ func (drv *IASIO) CreateBuffers(bufferDescriptors []BufferInfo, bufferSize int, 
 	return nil
 }
 
-////virtual ASIOError disposeBuffers() = 0;
-//pDisposeBuffers uintptr
+//virtual ASIOError disposeBuffers() = 0;
+func (drv *IASIO) DisposeBuffers() (err error) {
+	ase, _, _ := syscall.Syscall(drv.vtbl_asio.pDisposeBuffers, 1,
+		uintptr(unsafe.Pointer(drv)),
+		uintptr(0),
+		uintptr(0))
+
+	if derr := drv.asError(ase); derr != nil {
+		return derr
+	}
+	return nil
+}
 
 //virtual ASIOError controlPanel() = 0;
 func (drv *IASIO) ControlPanel() (err error) {
