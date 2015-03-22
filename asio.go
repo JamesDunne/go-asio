@@ -650,6 +650,7 @@ type callbacks struct {
 	pBufferSwitchTimeInfo uintptr
 }
 
+// Create a GC root so this does not get collected.
 var the_callbacks = &callbacks{}
 
 //virtual ASIOError createBuffers(ASIOBufferInfo *bufferInfos, long numChannels, long bufferSize, ASIOCallbacks *callbacks) = 0;
