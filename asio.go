@@ -6,6 +6,97 @@ import (
 	"unsafe"
 )
 
+/*
+typedef long ASIOBool;
+typedef double ASIOSampleRate;
+
+typedef struct ASIOSamples {
+	unsigned long hi;
+	unsigned long lo;
+} ASIOSamples;
+
+typedef struct ASIOTimeStamp {
+	unsigned long hi;
+	unsigned long lo;
+} ASIOTimeStamp;
+
+typedef struct ASIOTimeCode
+{
+	double          speed;                  // speed relation (fraction of nominal speed)
+	                                        // optional; set to 0. or 1. if not supported
+	ASIOSamples     timeCodeSamples;        // time in samples
+	unsigned long   flags;                  // some information flags (see below)
+	char future[64];
+} ASIOTimeCode;
+
+typedef struct AsioTimeInfo
+{
+	double          speed;                  // absolute speed (1. = nominal)
+	ASIOTimeStamp   systemTime;             // system time related to samplePosition, in nanoseconds
+	                                        // on mac, must be derived from Microseconds() (not UpTime()!)
+	                                        // on windows, must be derived from timeGetTime()
+	ASIOSamples     samplePosition;
+	ASIOSampleRate  sampleRate;             // current rate
+	unsigned long flags;                    // (see below)
+	char reserved[12];
+} AsioTimeInfo;
+
+typedef struct ASIOTime                          // both input/output
+{
+	long reserved[4];                       // must be 0
+	struct AsioTimeInfo     timeInfo;       // required
+	struct ASIOTimeCode     timeCode;       // optional, evaluated if (timeCode.flags & kTcValid)
+} ASIOTime;
+
+typedef void (*bufferSwitch) (long doubleBufferIndex, ASIOBool directProcess);
+
+bufferSwitch go_BufferSwitch;
+
+typedef struct ASIOCallbacks
+{
+	void (*bufferSwitch) (long doubleBufferIndex, ASIOBool directProcess);
+		// bufferSwitch indicates that both input and output are to be processed.
+		// the current buffer half index (0 for A, 1 for B) determines
+		// - the output buffer that the host should start to fill. the other buffer
+		//   will be passed to output hardware regardless of whether it got filled
+		//   in time or not.
+		// - the input buffer that is now filled with incoming data. Note that
+		//   because of the synchronicity of i/o, the input always has at
+		//   least one buffer latency in relation to the output.
+		// directProcess suggests to the host whether it should immedeately
+		// start processing (directProcess == ASIOTrue), or whether its process
+		// should be deferred because the call comes from a very low level
+		// (for instance, a high level priority interrupt), and direct processing
+		// would cause timing instabilities for the rest of the system. If in doubt,
+		// directProcess should be set to ASIOFalse.
+		// Note: bufferSwitch may be called at interrupt time for highest efficiency.
+
+	void (*sampleRateDidChange) (ASIOSampleRate sRate);
+		// gets called when the AudioStreamIO detects a sample rate change
+		// If sample rate is unknown, 0 is passed (for instance, clock loss
+		// when externally synchronized).
+
+	long (*asioMessage) (long selector, long value, void* message, double* opt);
+		// generic callback for various purposes, see selectors below.
+		// note this is only present if the asio version is 2 or higher
+
+	ASIOTime* (*bufferSwitchTimeInfo) (ASIOTime* params, long doubleBufferIndex, ASIOBool directProcess);
+		// new callback with time info. makes ASIOGetSamplePosition() and various
+		// calls to ASIOGetSampleRate obsolete,
+		// and allows for timecode sync etc. to be preferred; will be used if
+		// the driver calls asioMessage with selector kAsioSupportsTimeInfo.
+} ASIOCallbacks;
+
+// Trampoline to jump to Go function:
+void tramp_BufferSwitch(long doubleBufferIndex, ASIOBool directProcess)
+{
+	go_BufferSwitch(doubleBufferIndex, directProcess);
+}
+
+bufferSwitch C_BufferSwitch = tramp_BufferSwitch;
+*/
+import "C"
+
 // Special ASIO error values:
 const (
 	ASE_OK      = 0          // This value will be returned whenever the call succeeded
@@ -158,41 +249,23 @@ type rawASIOTime struct { // both input/output
 type ASIOTime struct {
 }
 
+//export go_BufferSwitch
+var go_BufferSwitch func(doubleBufferIndex int, directProcess bool)
+
+//export go_SampleRateDidChange
+var go_SampleRateDidChange func(rate float64)
+
+var go_Message func(selector, value int32, message uintptr, opt *float64) int32
+
+var go_BufferSwitchTimeInfo func(params *ASIOTime, doubleBufferIndex int32, directProcess bool) *ASIOTime
+
 type Callbacks struct {
-	//void (*bufferSwitch) (long doubleBufferIndex, ASIOBool directProcess);
-	//	// bufferSwitch indicates that both input and output are to be processed.
-	//	// the current buffer half index (0 for A, 1 for B) determines
-	//	// - the output buffer that the host should start to fill. the other buffer
-	//	//   will be passed to output hardware regardless of whether it got filled
-	//	//   in time or not.
-	//	// - the input buffer that is now filled with incoming data. Note that
-	//	//   because of the synchronicity of i/o, the input always has at
-	//	//   least one buffer latency in relation to the output.
-	//	// directProcess suggests to the host whether it should immedeately
-	//	// start processing (directProcess == ASIOTrue), or whether its process
-	//	// should be deferred because the call comes from a very low level
-	//	// (for instance, a high level priority interrupt), and direct processing
-	//	// would cause timing instabilities for the rest of the system. If in doubt,
-	//	// directProcess should be set to ASIOFalse.
-	//	// Note: bufferSwitch may be called at interrupt time for highest efficiency.
 	BufferSwitch func(doubleBufferIndex int, directProcess bool)
 
-	//void (*sampleRateDidChange) (ASIOSampleRate sRate);
-	//	// gets called when the AudioStreamIO detects a sample rate change
-	//	// If sample rate is unknown, 0 is passed (for instance, clock loss
-	//	// when externally synchronized).
 	SampleRateDidChange func(rate float64)
 
-	//long (*asioMessage) (long selector, long value, void* message, double* opt);
-	//	// generic callback for various purposes, see selectors below.
-	//	// note this is only present if the asio version is 2 or higher
 	Message func(selector, value int32, message uintptr, opt *float64) int32
 
-	//ASIOTime* (*bufferSwitchTimeInfo) (ASIOTime* params, long doubleBufferIndex, ASIOBool directProcess);
-	//	// new callback with time info. makes ASIOGetSamplePosition() and various
-	//	// calls to ASIOGetSampleRate obsolete,
-	//	// and allows for timecode sync etc. to be preferred; will be used if
-	//	// the driver calls asioMessage with selector kAsioSupportsTimeInfo.
 	BufferSwitchTimeInfo func(params *ASIOTime, doubleBufferIndex int32, directProcess bool) *ASIOTime
 }
 
@@ -474,13 +547,28 @@ func (drv *IASIO) CreateBuffers(bufferDescriptors []BufferInfo, bufferSize int, 
 		})
 	}
 
+	// Set global callback. ASIO callbacks do not supply a context argument and
+	// so cannot generally be made driver-specific.
+	go_BufferSwitch = callbacks.BufferSwitch
+
+	rawCallbacks := &struct {
+		pBufferSwitch         uintptr
+		pSampleRateDidChange  uintptr
+		pASIOMessage          uintptr
+		pBufferSwitchTimeInfo uintptr
+	}{
+		pBufferSwitch:         uintptr(unsafe.Pointer(C.C_BufferSwitch)),
+		pSampleRateDidChange:  uintptr(0),
+		pASIOMessage:          uintptr(0),
+		pBufferSwitchTimeInfo: uintptr(0),
+	}
+
 	ase, _, _ := syscall.Syscall6(drv.vtbl_asio.pCreateBuffers, 5,
 		uintptr(unsafe.Pointer(drv)),
 		uintptr(unsafe.Pointer(&rawBufferInfos[0])),
 		uintptr(len(bufferDescriptors)),
 		uintptr(bufferSize),
-		// TODO callbacks
-		uintptr(0),
+		uintptr(unsafe.Pointer(rawCallbacks)),
 		uintptr(0))
 
 	if derr := drv.asError(ase); derr != nil {

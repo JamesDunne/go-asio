@@ -81,9 +81,13 @@ func TestListDrivers(t *testing.T) {
 		// open control panel:
 		//drv.ControlPanel()
 
-		// createBuffers (set callbacks)
 		// getChannelInfo (for N)
+		bufferDescriptors := make([]BufferInfo, 0, in+out)
 		for i := 0; i < in; i++ {
+			bufferDescriptors = append(bufferDescriptors, BufferInfo{
+				Channel: i,
+				IsInput: true,
+			})
 			cinfo, err := drv.GetChannelInfo(i, true)
 			if err != nil {
 				t.Error(err)
@@ -92,12 +96,27 @@ func TestListDrivers(t *testing.T) {
 			fmt.Printf(" IN%-2d: active=%v, group=%d, type=%d, name=%s\n", i+1, cinfo.IsActive, cinfo.ChannelGroup, cinfo.SampleType, cinfo.Name)
 		}
 		for i := 0; i < out; i++ {
+			bufferDescriptors = append(bufferDescriptors, BufferInfo{
+				Channel: i,
+				IsInput: false,
+			})
 			cinfo, err := drv.GetChannelInfo(i, false)
 			if err != nil {
 				t.Error(err)
 				continue
 			}
 			fmt.Printf("OUT%-2d: active=%v, group=%d, type=%d, name=%s\n", i+1, cinfo.IsActive, cinfo.ChannelGroup, cinfo.SampleType, cinfo.Name)
+		}
+
+		// createBuffers (set callbacks)
+		err = drv.CreateBuffers(bufferDescriptors, minSize, Callbacks{
+			BufferSwitch: func(doubleBufferIndex int, directProcess bool) {
+				//drv.
+			},
+		})
+		if err != nil {
+			t.Error(err)
+			return
 		}
 
 		// getLatencies
